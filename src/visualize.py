@@ -1,65 +1,75 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import pandas as pd
+import seaborn as sns
+
+from src.analysis import compute_time_series_metrics
 
 
-def summarize_delay_patterns(df: pd.DataFrame):
-    """Return key statistics from TTC delay data."""
-    summary = {
-        "total_records": int(len(df)),
-        "average_delay_minutes": float(df["delay_minutes"].mean()),
-        "median_delay_minutes": float(df["delay_minutes"].median()),
-        "max_delay_minutes": float(df["delay_minutes"].max()),
-    }
-
-    hourly = df.groupby("hour")["delay_minutes"].mean().sort_values(ascending=False)
-    summary["peak_delay_hour"] = int(hourly.index[0]) if not hourly.empty else None
-    summary["peak_delay_hour_avg"] = float(hourly.iloc[0]) if not hourly.empty else 0.0
-
-    route_summary = df.groupby("route", dropna=False)["delay_minutes"].mean().sort_values(ascending=False)
-    summary["top_route"] = route_summary.index[0] if not route_summary.empty else "N/A"
-    summary["top_route_delay"] = float(route_summary.iloc[0]) if not route_summary.empty else 0.0
-
-    location_summary = df["location"].dropna().value_counts()
-    summary["top_location"] = location_summary.index[0] if not location_summary.empty else "N/A"
-    summary["top_location_count"] = int(location_summary.iloc[0]) if not location_summary.empty else 0
-
-    return summary
+sns.set_theme(style="whitegrid")
 
 
-def compute_time_series_metrics(df: pd.DataFrame):
-    """Compute group-by time metrics for trend analysis."""
-    hourly_delay = (
-        df.groupby("hour", as_index=False)["delay_minutes"]
-        .agg(["mean", "median", "count"])
-        .rename(columns={"mean": "avg_delay_minutes", "median": "median_delay_minutes", "count": "record_count"})
-        .sort_values("hour")
-    )
+def generate_visualizations(df: pd.DataFrame, output_dir: str | Path):
+    """Create delay-pattern charts for the TTC analysis project."""
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
 
-    daily_delay = (
-        df.groupby("day_of_week", as_index=False)["delay_minutes"]
-        .agg(["mean", "count"])
-        .rename(columns={"mean": "avg_delay_minutes", "count": "record_count"})
-        .sort_values("avg_delay_minutes", ascending=False)
-    )
+    metrics = compute_time_series_metrics(df)
+    hourly = metrics["hourly_delay"]
+    daily = metrics["daily_delay"]
+    route = metrics["route_delay"].head(10)
+    location = metrics["location_delay"].head(10)
 
-    route_delay = (
-        df.groupby("route", dropna=False, as_index=False)["delay_minutes"]
-        .agg(["mean", "count"])
-        .rename(columns={"mean": "avg_delay_minutes", "count": "record_count"})
-        .sort_values("avg_delay_minutes", ascending=False)
-    )
+    day_order = [
+        "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
+    ]
+    daily_plot = daily.copy()
+    daily_plot["day_of_week"] = pd.Categorical(daily_plot["day_of_week"], categories=day_order, ordered=True)
+    daily_plot = daily_plot.sort_values("day_of_week").reset_index(drop=True)
 
-    location_delay = (
-        df.groupby("location", dropna=False, as_index=False)["delay_minutes"]
-        .agg(["mean", "count"])
-        .rename(columns={"mean": "avg_delay_minutes", "count": "record_count"})
-        .sort_values("avg_delay_minutes", ascending=False)
-    )
+    plt.figure(figsize=(10, 6))
+    plt.plot(hourly["hour"], hourly["avg_delay_minutes"], color="#1f77b4", marker="o", linewidth=2)
+    plt.title("Average Delay by Hour of Day")
+    plt.xlabel("Hour")
+    plt.ylabel("Average Delay (minutes)")
+    plt.grid(alpha=0.35)
+    plt.tight_layout()
+    plt.savefig(output_path / "average_delay_by_hour.png", dpi=200)
+    plt.close()
 
-    return {
-        "hourly_delay": hourly_delay,
-        "daily_delay": daily_delay,
-        "route_delay": route_delay,
-        "location_delay": location_delay,
-    }
+    plt.figure(figsize=(10, 6))
+    sns.barplot(data=daily_plot, x="day_of_week", y="avg_delay_minutes", palette="Blues_d")
+    plt.title("Average Delay by Day of Week")
+    plt.xlabel("Day of Week")
+    plt.ylabel("Average Delay (minutes)")
+    plt.xticks(rotation=20)
+    plt.tight_layout()
+    plt.savefig(output_path / "delay_by_day_of_week.png", dpi=200)
+    plt.close()
+
+    plt.figure(figsize=(10, 6))
+    sns.barplot(data=route, y="route", x="avg_delay_minutes", palette="Oranges_r", orient="h")
+    plt.title("Top Routes by Average Delay")
+    plt.xlabel("Average Delay (minutes)")
+    plt.ylabel("Route")
+    plt.gca().invert_yaxis()
+    plt.tight_layout()
+    plt.savefig(output_path / "top_routes_by_delay.png", dpi=200)
+    plt.close()
+
+    plt.figure(figsize=(10, 6))
+    sns.barplot(data=location, y="location", x="avg_delay_minutes", palette="Greens_r", orient="h")
+    plt.title("Top Locations by Average Delay")
+    plt.xlabel("Average Delay (minutes)")
+    plt.ylabel("Location")
+    plt.gca().invert_yaxis()
+    plt.tight_layout()
+    plt.savefig(output_path / "top_locations_by_delay.png", dpi=200)
+    plt.close()
+
+    print(f"Generated plots in {output_path.resolve()}")

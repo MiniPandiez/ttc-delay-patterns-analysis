@@ -1,5 +1,10 @@
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+"""TTC delay analysis package."""
 
-# TTC Delay Analysis
+from .analysis import compute_time_series_metrics, summarize_delay_patterns
+from .preprocess import load_and_clean_dataset
 
-This package contains helper functions for cleaning and analyzing TTC delay logs.
+__all__ = [
+    "load_and_clean_dataset",
+    "summarize_delay_patterns",
+    "compute_time_series_metrics",
+]

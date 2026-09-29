@@ -1,24 +1,36 @@
 # Time-Series Analysis: TTC Delay Patterns
 
-A Python-based transit analytics project that examines TTC delay logs to uncover temporal and spatial congestion patterns using public transportation data.
+A polished Python project for exploring Toronto Transit Commission (TTC) delay trends and congestion behavior through data cleaning, time-series analysis, and visualization.
 
-## Overview
-This project analyzes a public dataset containing 100,000+ Toronto Transit Commission (TTC) delay records. The objective is to identify recurring delay trends, understand operational hotspots, and communicate patterns through clear visual analytics.
+## Project Overview
+This project analyzes a synthetic TTC delay dataset containing more than 100,000 records to uncover temporal and spatial congestion patterns. By cleaning inconsistent fields, normalizing timestamps, and aggregating delays across routes and stations, the analysis highlights when and where service disruptions are most frequent.
 
-The workflow emphasizes:
-- data cleaning and missing-value handling
-- timestamp normalization and feature engineering
-- temporal aggregation by hour, day, and month
-- route and location analysis
-- visual storytelling using Matplotlib and Seaborn
+The work is designed to demonstrate:
+- data wrangling with Pandas
+- time-series feature engineering
+- transit delay analysis
+- exploratory data analysis (EDA)
+- visual storytelling with Matplotlib and Seaborn
 
-## Project Goals
-- Detect delay patterns by time of day and day of week
-- Measure average delay severity by route and stop/location
-- Identify peak congestion windows and recurring hotspots
-- Demonstrate strong Python data wrangling and time-series analysis skills
+## Why This Project Matters
+Urban mobility systems are highly sensitive to delays, crowding, and service interruptions. TTC delay data can reveal recurring patterns such as:
+- morning and evening rush-hour congestion spikes
+- route-specific service instability
+- recurring hotspots around frequent transit nodes
+- systematic service disruptions tied to time-of-day and weekday patterns
 
-## Tools Used
+This project turns raw operational data into actionable insight for transit service analysis and planning.
+
+## Skills Demonstrated
+- Python data analytics
+- Pandas preprocessing and aggregation
+- Time-series feature engineering
+- Missing-value handling and data cleansing
+- Route and location-level analysis
+- Matplotlib/Seaborn data visualization
+- Real-world transportation analytics
+
+## Tech Stack
 - Python
 - Pandas
 - NumPy
@@ -29,6 +41,7 @@ The workflow emphasizes:
 ```text
 .
 ├── data/
+│   ├── generate_ttc_dataset.py
 │   └── ttc_delay_logs.csv
 ├── results/
 │   ├── average_delay_by_hour.png
@@ -41,64 +54,62 @@ The workflow emphasizes:
 │   ├── preprocess.py
 │   └── visualize.py
 ├── .gitignore
+├── LICENSE
 ├── main.py
 ├── README.md
 ├── requirements.txt
-└── LICENSE
+└── .python-version
 ```
 
-## Setup
-Clone the project and install the dependencies:
+## Data Generation
+The project includes a synthetic dataset generator so it runs immediately without external data:
 
 ```bash
-git clone https://github.com/MiniPandiez/ttc-delay-patterns-analysis.git
-cd ttc-delay-patterns-analysis
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+python data/generate_ttc_dataset.py
 ```
 
-## Data
-Place your TTC delay dataset in the `data/` folder as:
+This creates a realistic TTC-style CSV at:
 
 ```text
 data/ttc_delay_logs.csv
 ```
 
-The project expects a CSV with fields similar to:
-- date
-- time
-- route
-- location
-- delay_minutes
-- incident_type
+## Running the Analysis
+1. Install dependencies:
 
-If your dataset uses different column names, the preprocessing script attempts to auto-detect common variants and normalize them.
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+```
 
-## Run the Analysis
+2. Generate or place the dataset:
+
+```bash
+python data/generate_ttc_dataset.py
+```
+
+3. Run the analysis pipeline:
+
 ```bash
 python main.py --input data/ttc_delay_logs.csv --output-dir results
 ```
 
-This script will:
-1. load and clean the dataset
-2. engineer time-based features
-3. summarize delay patterns
-4. generate charts in the `results/` folder
+## Output
+The pipeline produces summary statistics and stores visualizations in the `results/` folder, including:
+- average delay by hour of day
+- average delay by day of week
+- top routes by delay severity
+- top locations by delay frequency and severity
 
 ## Example Insights
-- weekday rush-hour delays are usually the most severe
-- specific routes show consistent congestion patterns
-- particular locations experience repeated delay clustering
-- delay severity often rises during commuting periods and weather-affected conditions
+- Peak delay concentrations appear during commuting windows
+- Certain routes consistently show higher delay severity
+- Delay frequency is concentrated in busy terminal and corridor locations
+- Transit disruptions display strong temporal structure, which is valuable for operational planning
 
-## Skills Demonstrated
-- data cleaning and preprocessing
-- time-series feature engineering
-- exploratory data analysis
-- aggregation and trend analysis
-- data visualization and dashboard-style reporting
-- real-world transportation analytics
+## Project Goal Statement
+This project was built to answer a practical question: when and where do TTC delays cluster most heavily, and what patterns can be extracted from noisy operational data? The answer is delivered through systematic preprocessing, aggregation, and visual analysis.
 
 ## License
-This project is distributed under the MIT License.
+This project is available under the MIT License.

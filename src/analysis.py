@@ -1,166 +1,69 @@
 from __future__ import annotations
 
-import re
-from pathlib import Path
-
 import pandas as pd
 
 
-def normalize_column_names(columns):
-    """Convert column names to a clean lowercase snake_case form."""
-    cleaned = []
-    for col in columns:
-        value = str(col).strip().lower()
-        value = re.sub(r"[^a-z0-9]+", "_", value)
-        value = re.sub(r"_+", "_", value).strip("_")
-        cleaned.append(value)
-    return cleaned
+def summarize_delay_patterns(df: pd.DataFrame):
+    """Return headline delay metrics for the TTC analysis."""
+    summary = {
+        "total_records": int(len(df)),
+        "average_delay_minutes": float(df["delay_minutes"].mean()),
+        "median_delay_minutes": float(df["delay_minutes"].median()),
+        "max_delay_minutes": float(df["delay_minutes"].max()),
+    }
+
+    hourly = df.groupby("hour")["delay_minutes"].mean().sort_values(ascending=False)
+    summary["peak_delay_hour"] = int(hourly.index[0]) if not hourly.empty else None
+    summary["peak_delay_hour_avg"] = float(hourly.iloc[0]) if not hourly.empty else 0.0
+
+    route_summary = df.groupby("route", dropna=False)["delay_minutes"].mean().sort_values(ascending=False)
+    summary["top_route"] = route_summary.index[0] if not route_summary.empty else "N/A"
+    summary["top_route_delay"] = float(route_summary.iloc[0]) if not route_summary.empty else 0.0
+
+    location_summary = df["location"].dropna().value_counts()
+    summary["top_location"] = location_summary.index[0] if not location_summary.empty else "N/A"
+    summary["top_location_count"] = int(location_summary.iloc[0]) if not location_summary.empty else 0
+
+    return summary
 
 
-def parse_datetime_column(df: pd.DataFrame, date_col: str, time_col: str | None = None):
-    """Create a datetime column from date and optional time columns."""
-    if date_col in df.columns:
-        date_values = df[date_col].astype(str)
-    else:
-        raise KeyError(f"Date column '{date_col}' not found in dataset.")
-
-    if time_col and time_col in df.columns:
-        time_values = df[time_col].astype(str)
-        combined = date_values + " " + time_values
-    else:
-        combined = date_values
-
-    dt = pd.to_datetime(combined, errors="coerce")
-    return dt
-
-
-def detect_common_columns(df: pd.DataFrame):
-    """Match a wide range of possible input column names to canonical names."""
-    col_map = {str(c).strip().lower(): c for c in df.columns}
-
-    def find(*choices):
-        for choice in choices:
-            if choice in col_map:
-                return col_map[choice]
-        return None
-
-    date_col = find(
-        "date",
-        "datetime",
-        "timestamp",
-        "incident_date",
-        "occurred_at",
-        "report_date",
-    )
-    time_col = find(
-        "time",
-        "incident_time",
-        "occurred_time",
-        "time_of_day",
-    )
-    route_col = find(
-        "route",
-        "route_number",
-        "line",
-        "route_name",
-        "vehicle_route",
-    )
-    location_col = find(
-        "location",
-        "stop",
-        "station",
-        "station_name",
-        "stop_name",
-        "place",
-        "area",
-    )
-    delay_col = find(
-        "delay_minutes",
-        "delay_min",
-        "minutes_delay",
-        "delay",
-        "delay_time",
-        "minutes",
-    )
-    type_col = find(
-        "incident_type",
-        "type",
-        "delay_type",
-        "reason",
-        "cause",
+def compute_time_series_metrics(df: pd.DataFrame):
+    """Compute grouped metrics used to generate charts and trend summaries."""
+    hourly_delay = (
+        df.groupby("hour", as_index=False)["delay_minutes"]
+        .agg(["mean", "median", "count"])
+        .rename(columns={"mean": "avg_delay_minutes", "median": "median_delay_minutes", "count": "record_count"})
+        .sort_values("hour")
+        .reset_index(drop=True)
     )
 
-    return {"date": date_col, "time": time_col, "route": route_col, "location": location_col, "delay": delay_col, "type": type_col}
-
-
-def clean_numeric_series(series: pd.Series):
-    """Convert numeric-like text values to floats and replace invalid values with NaN."""
-    cleaned = pd.to_numeric(series.astype(str).str.replace(",", "", regex=False), errors="coerce")
-    return cleaned
-
-
-def load_and_clean_dataset(path: str | Path) -> pd.DataFrame:
-    """Load TTC delay data, normalize columns, and produce a usable analysis-ready DataFrame."""
-    csv_path = Path(path)
-    df = pd.read_csv(csv_path)
-
-    df.columns = normalize_column_names(df.columns)
-    mapping = detect_common_columns(df)
-
-    if mapping["date"] is None:
-        raise ValueError(
-            "Could not detect a date column. Ensure your CSV contains a date/timestamp field."
-        )
-
-    date_col = mapping["date"]
-    time_col = mapping["time"]
-    route_col = mapping["route"]
-    location_col = mapping["location"]
-    delay_col = mapping["delay"]
-    type_col = mapping["type"]
-
-    if route_col is not None:
-        df["route"] = df[route_col].astype(str).str.strip()
-        df.loc[df["route"].eq("nan"), "route"] = pd.NA
-    else:
-        df["route"] = pd.NA
-
-    if location_col is not None:
-        df["location"] = df[location_col].astype(str).str.strip()
-        df.loc[df["location"].eq("nan"), "location"] = pd.NA
-    else:
-        df["location"] = pd.NA
-
-    if type_col is not None:
-        df["incident_type"] = df[type_col].astype(str).str.strip()
-        df.loc[df["incident_type"].eq("nan"), "incident_type"] = pd.NA
-    else:
-        df["incident_type"] = pd.NA
-
-    df["timestamp"] = parse_datetime_column(df, date_col, time_col)
-    df = df.dropna(subset=["timestamp"]).copy()
-
-    if delay_col is not None:
-        df["delay_minutes"] = clean_numeric_series(df[delay_col])
-    else:
-        df["delay_minutes"] = pd.NA
-
-    df["delay_minutes"] = df["delay_minutes"].fillna(df.get("delay_minutes", pd.Series([pd.NA] * len(df))))
-    df["delay_minutes"] = pd.to_numeric(df["delay_minutes"], errors="coerce")
-
-    df["delay_minutes"] = df["delay_minutes"].fillna(0)
-
-    df["year"] = df["timestamp"].dt.year
-    df["month"] = df["timestamp"].dt.month
-    df["day_of_week"] = df["timestamp"].dt.day_name()
-    df["hour"] = df["timestamp"].dt.hour
-    df["time_bucket"] = df["hour"].apply(
-        lambda h: "Late Night" if h < 5 else "Morning" if h < 12 else "Afternoon" if h < 17 else "Evening"
+    daily_delay = (
+        df.groupby("day_of_week", as_index=False)["delay_minutes"]
+        .agg(["mean", "count"])
+        .rename(columns={"mean": "avg_delay_minutes", "count": "record_count"})
+        .sort_values("avg_delay_minutes", ascending=False)
+        .reset_index(drop=True)
     )
 
-    df["route"] = df["route"].replace({"nan": pd.NA, "None": pd.NA})
-    df["location"] = df["location"].replace({"nan": pd.NA, "None": pd.NA})
-    df["incident_type"] = df["incident_type"].replace({"nan": pd.NA, "None": pd.NA})
+    route_delay = (
+        df.groupby("route", dropna=False, as_index=False)["delay_minutes"]
+        .agg(["mean", "count"])
+        .rename(columns={"mean": "avg_delay_minutes", "count": "record_count"})
+        .sort_values("avg_delay_minutes", ascending=False)
+        .reset_index(drop=True)
+    )
 
-    df = df.sort_values("timestamp").reset_index(drop=True)
-    return df
+    location_delay = (
+        df.groupby("location", dropna=False, as_index=False)["delay_minutes"]
+        .agg(["mean", "count"])
+        .rename(columns={"mean": "avg_delay_minutes", "count": "record_count"})
+        .sort_values("avg_delay_minutes", ascending=False)
+        .reset_index(drop=True)
+    )
+
+    return {
+        "hourly_delay": hourly_delay,
+        "daily_delay": daily_delay,
+        "route_delay": route_delay,
+        "location_delay": location_delay,
+    }
