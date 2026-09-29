@@ -1,0 +1,79 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import pandas as pd
+
+from src.analysis import compute_time_series_metrics
+
+
+def generate_visualizations(df: pd.DataFrame, output_dir: str | Path):
+    """Create a set of plot files summarizing TTC delay patterns."""
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    metrics = compute_time_series_metrics(df)
+
+    hourly = metrics["hourly_delay"]
+    daily = metrics["daily_delay"]
+    route = metrics["route_delay"].head(10)
+    location = metrics["location_delay"].head(10)
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(hourly["hour"], hourly["avg_delay_minutes"], color="royalblue", marker="o")
+    plt.title("Average Delay Minutes by Hour of Day")
+    plt.xlabel("Hour")
+    plt.ylabel("Average Delay (minutes)")
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(output_path / "average_delay_by_hour.png", dpi=200)
+    plt.close()
+
+    day_order = [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+    ]
+    daily_plot = daily.copy()
+    daily_plot["day_of_week"] = pd.Categorical(daily_plot["day_of_week"], categories=day_order, ordered=True)
+    daily_plot = daily_plot.sort_values("day_of_week")
+
+    plt.figure(figsize=(10, 6))
+    plt.bar(daily_plot["day_of_week"], daily_plot["avg_delay_minutes"], color="steelblue")
+    plt.title("Average Delay by Day of Week")
+    plt.xlabel("Day of Week")
+    plt.ylabel("Average Delay (minutes)")
+    plt.xticks(rotation=20)
+    plt.grid(axis="y", alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(output_path / "delay_by_day_of_week.png", dpi=200)
+    plt.close()
+
+    plt.figure(figsize=(10, 6))
+    plt.barh(route["route"].astype(str), route["avg_delay_minutes"], color="darkorange")
+    plt.title("Top Routes by Average Delay")
+    plt.xlabel("Average Delay (minutes)")
+    plt.ylabel("Route")
+    plt.gca().invert_yaxis()
+    plt.tight_layout()
+    plt.savefig(output_path / "top_routes_by_delay.png", dpi=200)
+    plt.close()
+
+    plt.figure(figsize=(10, 6))
+    plt.barh(location["location"].astype(str), location["avg_delay_minutes"], color="forestgreen")
+    plt.title("Top Locations by Average Delay")
+    plt.xlabel("Average Delay (minutes)")
+    plt.ylabel("Location")
+    plt.gca().invert_yaxis()
+    plt.tight_layout()
+    plt.savefig(output_path / "top_locations_by_delay.png", dpi=200)
+    plt.close()
+
+    print(f"Generated plots: {sorted(p.name for p in output_path.iterdir() if p.suffix in {'.png'})}")
